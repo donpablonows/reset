@@ -1,1 +1,0 @@
-sudo adduser don --gecos "" --disabled-password && echo "don:deviant69ne1*" | sudo chpasswd && sudo apt update && sudo apt install -y xrdp xfce4 xfce4-goodies && sudo systemctl enable xrdp && sudo systemctl start xrdp
