@@ -2,6 +2,7 @@ import os
 import platform
 import json
 import sys
+import subprocess
 from colorama import Fore, Style
 from enum import Enum
 from typing import Optional
@@ -384,7 +385,6 @@ def get_user_agent():
         return None
 
 
-
 def print_end_message():
     logging.info("\n\n\n\n\n")
     logging.info("=" * 30)
@@ -398,34 +398,61 @@ def print_end_message():
     )
 
 
-if __name__ == "__main__":
+def launch_cursor_ide():
+    """在独立进程中启动Cursor IDE"""
+    try:
+        logging.info("正在启动Cursor IDE...")
+        
+        # 根据操作系统选择启动命令
+        if platform.system() == "Windows":
+            # Windows路径中可能存在的程序位置
+            possible_paths = [
+                os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Programs', 'Cursor', 'Cursor.exe'),
+                os.path.join(os.environ.get('PROGRAMFILES', ''), 'Cursor', 'Cursor.exe'),
+                os.path.join(os.environ.get('PROGRAMFILES(X86)', ''), 'Cursor', 'Cursor.exe')
+            ]
+            
+            cursor_path = None
+            for path in possible_paths:
+                if os.path.exists(path):
+                    cursor_path = path
+                    break
+            
+            if cursor_path:
+                # 使用subprocess.Popen启动新进程，与当前进程分离
+                subprocess.Popen([cursor_path], creationflags=subprocess.DETACHED_PROCESS)
+                logging.info(f"Cursor IDE已在单独进程中启动: {cursor_path}")
+            else:
+                logging.error("未找到Cursor IDE可执行文件")
+                
+        elif platform.system() == "Darwin":  # macOS
+            subprocess.Popen(["open", "-a", "Cursor"], start_new_session=True)
+            logging.info("Cursor IDE已在单独进程中启动")
+            
+        elif platform.system() == "Linux":
+            subprocess.Popen(["cursor"], start_new_session=True)
+            logging.info("Cursor IDE已在单独进程中启动")
+            
+        else:
+            logging.error(f"不支持的操作系统: {platform.system()}")
+            
+    except Exception as e:
+        logging.error(f"启动Cursor IDE时出错: {str(e)}")
+
+
+def run_script():
+    """主函数，包含自动重启逻辑"""
     print_logo()
     browser_manager = None
+    success = False  # 用于跟踪脚本是否成功完成
+    
     try:
         logging.info("\n=== 初始化程序 ===")
         ExitCursor()
 
-        # 提示用户选择操作模式
-        print("\n请选择操作模式:")
-        print("1. 仅重置机器码")
-        print("2. 完整注册流程")
-
-        while True:
-            try:
-                choice = int(input("请输入选项 (1 或 2): ").strip())
-                if choice in [1, 2]:
-                    break
-                else:
-                    print("无效的选项,请重新输入")
-            except ValueError:
-                print("请输入有效的数字")
-
-        if choice == 1:
-            # 仅执行重置机器码
-            MachineIDResetter().reset_machine_ids()
-            logging.info("机器码重置完成")
-            print_end_message()
-            sys.exit(0)
+        # 自动选择选项2（完整注册流程）
+        choice = 2
+        logging.info("自动选择选项2: 完整注册流程")
 
         logging.info("正在初始化浏览器...")
 
@@ -448,6 +475,7 @@ if __name__ == "__main__":
             "请前往开源项目查看更多信息：https://github.com/chengazhen/cursor-auto-free"
         )
         logging.info("\n=== 配置信息 ===")
+        global login_url, sign_up_url, settings_url, mail_url, first_name, last_name, account, password, email_handler
         login_url = "https://authenticator.cursor.sh"
         sign_up_url = "https://authenticator.cursor.sh/sign-up"
         settings_url = "https://www.cursor.com/settings"
@@ -499,16 +527,37 @@ if __name__ == "__main__":
                 logging.info("重置机器码...")
                 MachineIDResetter().reset_machine_ids()
                 logging.info("所有操作已完成")
+                success = True  # 标记脚本成功完成
                 print_end_message()
             else:
                 logging.error("获取会话令牌失败，注册流程未完成")
+                # 未成功完成，设置success为False
+        else:
+            logging.error("注册账号失败，脚本未完成")
+            # 未成功完成，设置success为False
 
     except Exception as e:
         logging.error(f"程序执行出现错误: {str(e)}")
         import traceback
-
         logging.error(traceback.format_exc())
+        # 出现异常，设置success为False
+        
     finally:
         if browser_manager:
             browser_manager.quit()
-        input("\n程序执行完毕，按回车键退出...")
+        
+        if success:
+            # 如果脚本成功完成，启动Cursor IDE
+            launch_cursor_ide()
+            logging.info("脚本已成功完成，Cursor IDE已启动")
+        else:
+            # 如果脚本未成功完成，重新启动脚本
+            logging.warning("脚本未成功完成，即将重新启动...")
+            time.sleep(3)  # 等待3秒后重启
+            # 使用python命令重新启动当前脚本
+            python_executable = sys.executable
+            os.execl(python_executable, python_executable, *sys.argv)
+
+
+if __name__ == "__main__":
+    run_script()
