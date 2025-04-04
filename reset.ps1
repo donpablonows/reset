@@ -61,7 +61,7 @@ function Stop-CursorProcesses {
 
 # Function to remove all Cursor-related directories and files
 function Remove-CursorDirectories {
-    Write-Host "Cleaning up Cursor directories..."
+    Write-Host "Step 1/5: Cleaning up Cursor directories..."
     $paths = @(
         (Join-Path $env:USERPROFILE ".cursor"),
         (Join-Path $env:LOCALAPPDATA "cursor-updater"),
@@ -81,7 +81,7 @@ function Remove-CursorDirectories {
 
 # Function to remove all Cursor-related registry keys
 function Remove-CursorRegistry {
-    Write-Host "Cleaning up Cursor registry keys..."
+    Write-Host "Step 2/5: Cleaning up Cursor registry keys..."
     $registryPaths = @(
         "HKCU:\Software\Cursor",
         "HKLM:\Software\Cursor",
@@ -100,7 +100,7 @@ function Remove-CursorRegistry {
 
 # Function to install the Cursor application
 function Install-Cursor {
-    Write-Host "Installing Cursor..."
+    Write-Host "Step 3/5: Installing Cursor..."
     $installerPath = "./cursor.exe"  # Make sure this is the correct installer path
     
     if (-not (Test-Path $installerPath)) {
@@ -129,7 +129,6 @@ function Install-Cursor {
         throw
     }
 }
-
 
 function Initialize-CursorApp {
     Write-Host "Step 4/5: Initializing Cursor..."
@@ -163,6 +162,37 @@ function Initialize-CursorApp {
     }
 }
 
+# Function to execute the Python reset script
+function Run-PythonReset {
+    Write-Host "Step 5/5: Running detailed reset operations..."
+    try {
+        # Check if Python is installed
+        $pythonPath = "python"
+        if (-not (Get-Command $pythonPath -ErrorAction SilentlyContinue)) {
+            $pythonPath = "py"
+            if (-not (Get-Command $pythonPath -ErrorAction SilentlyContinue)) {
+                throw "Python is not installed or not in PATH. Please install Python and try again."
+            }
+        }
+        
+        # Run the Python script
+        $pythonScript = Join-Path $PSScriptRoot "reset.py"
+        if (-not (Test-Path $pythonScript)) {
+            throw "Python reset script not found at: ${pythonScript}"
+        }
+        
+        & $pythonPath $pythonScript
+        if ($LASTEXITCODE -ne 0) {
+            throw "Python reset script failed with exit code: $LASTEXITCODE"
+        }
+        
+        Write-Host "Python reset operations completed successfully`n"
+    }
+    catch {
+        throw "Failed to run Python reset script: $($_.Exception.Message)"
+    }
+}
+
 # Main execution sequence
 try {
     Write-Host "Starting complete Cursor cleanup and reinstallation..."
@@ -179,13 +209,17 @@ try {
     # Install the Cursor application again
     Install-Cursor
 
-    # Final initialization step
+    # Initialize the cursor application
     Initialize-CursorApp
-	
-	py .\reset.py
+    
+    # Run the Python reset script for detailed cleanup
+    Run-PythonReset
+    
+    Write-Host "✅ Complete Cursor reset and reinstallation process finished successfully!"
 }
 catch {
-    Write-Host "`nError: $($_.Exception.Message)"
-    Write-Host "Process failed - please check the error message above."
+    Write-Host "`nError: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Process failed - please check the error message above." -ForegroundColor Red
     exit 1
 }
+
